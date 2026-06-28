@@ -183,13 +183,50 @@ Install the package in editable mode with dev dependencies:
 pip install -e ".[dev]"
 ```
 
-Run the tests:
+Run the pure-Python tests (no WASM required):
 
 ```bash
-pytest
+pytest test_basic.py
 ```
 
-The tests in `test_basic.py` cover pure-Python behaviour (types, transports, argument hashing) and do not require a compiled `perso.wasm` binary. Integration tests that run the full evaluate path against a real WASM binary belong in a separate `test_integration.py` and need `PERSO_WASM_PATH` and `PERSO_POLICY_PATH` set in the environment.
+## Testing
+
+### Unit tests (no binary required)
+
+`test_basic.py` covers pure-Python behaviour — types, transports, argument hashing — without a compiled `perso.wasm`. These always run in CI:
+
+```bash
+pytest test_basic.py -v
+```
+
+### Integration tests (real WASM, real policy)
+
+`tests/test_integration.py` ports the **18 spec cases** from the perso core repo's own `wasm_tests` suite (`perso/crates/policy-test/src/lib.rs`), driving each scenario through the Python SDK's public API against a real compiled `perso.wasm` binary. This is parity testing, not a looser alternative: the same tool names, args, roles, agent and resource attributes, and expected Allow/Deny decisions as the Rust WASM boundary tests.
+
+**Step 1 — build the fixtures** (one-time, needs a local clone of the perso core repo):
+
+```bash
+# assumes ../perso exists; override with PERSO_REPO_PATH=/path/to/perso
+./scripts/build_fixtures.sh
+```
+
+This compiles `policy_runtime.wasm` from the perso repo's policy-compiler crate (requires Rust + the `wasm32-unknown-unknown` target) and copies the output alongside `policies/example.json` into `tests/fixtures/`. The fixtures are `.gitignore`d — each developer builds them locally.
+
+**Step 2 — run the integration tests:**
+
+```bash
+pytest tests/test_integration.py -v
+```
+
+If `tests/fixtures/perso.wasm` is absent the suite skips gracefully with a message explaining how to build it — it does **not** fail CI. You can also point the tests at any pre-built binary:
+
+```bash
+PERSO_WASM_PATH=/path/to/perso.wasm \
+PERSO_POLICY_PATH=/path/to/policies/example.json \
+pytest tests/test_integration.py -v
+```
+
+**What it proves:** the Python ABI wrapper (`_wasm.py`) and public `Perso.evaluate()` method produce the same Allow/Deny decisions as the Rust core for all 18 spec scenarios — not just "it imports successfully." 19 test functions cover the 18 numbered cases (spec 16 has two sub-cases, a and b, matching the Rust source exactly).
 
 ## License
 

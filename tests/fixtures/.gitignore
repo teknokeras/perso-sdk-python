@@ -1,0 +1,3 @@
+# Built fixtures — generate with: scripts/build_fixtures.sh
+perso.wasm
+policy.json
